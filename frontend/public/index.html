@@ -68,6 +68,16 @@
                 </div>
             </div>
         </div>
+        <div id="tasks-section">
+            <h2 class="collapsible-header" id="tasks-header">
+                <span class="toggle-icon">▼</span> Tasks
+            </h2>
+            <div class="collapsible-content" id="tasks-content">
+                <div id="tasks-list-container">
+                    <p class="placeholder-text">No tasks yet. Tasks will appear here when you send messages to non-streaming agents.</p>
+                </div>
+            </div>
+        </div>
         <div id="chat-container">
             <div class="chat-header-container">
                 <h2 class="chat-header">Chat</h2>
@@ -85,6 +95,10 @@
                         <div class="session-info-row">
                             <strong>Transport:</strong>
                             <span id="session-transport" class="session-transport">Not connected</span>
+                        </div>
+                        <div class="session-info-row">
+                            <strong>Streaming:</strong>
+                            <span id="session-streaming" class="session-streaming">Unknown</span>
                         </div>
                         <div class="session-info-row">
                             <strong>Input Modalities:</strong>

@@ -1294,3 +1294,219 @@ body.dark-mode .file-link {
 body.dark-mode .file-link:hover {
     background-color: var(--bg-secondary);
 }
+
+/* Task Management Styles */
+#tasks-section {
+    margin-bottom: 20px;
+}
+
+.task-card {
+    background-color: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 10px;
+}
+
+.task-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.task-id {
+    font-family: 'Courier New', monospace;
+    font-size: 0.9em;
+    color: var(--text-secondary);
+}
+
+.task-status {
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 0.85em;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.task-status-submitted {
+    background-color: #e3f2fd;
+    color: #1976d2;
+}
+
+body.dark-mode .task-status-submitted {
+    background-color: #1e3a5f;
+    color: #90caf9;
+}
+
+.task-status-working {
+    background-color: #fff3e0;
+    color: #f57c00;
+}
+
+body.dark-mode .task-status-working {
+    background-color: #4a3500;
+    color: #ffb74d;
+}
+
+.task-status-completed {
+    background-color: #e8f5e9;
+    color: #2e7d32;
+}
+
+body.dark-mode .task-status-completed {
+    background-color: #1b3a1f;
+    color: #81c784;
+}
+
+.task-status-failed {
+    background-color: #ffebee;
+    color: #c62828;
+}
+
+body.dark-mode .task-status-failed {
+    background-color: #4a1515;
+    color: #ef5350;
+}
+
+.task-status-canceled,
+.task-status-rejected {
+    background-color: #f3e5f5;
+    color: #6a1b9a;
+}
+
+body.dark-mode .task-status-canceled,
+body.dark-mode .task-status-rejected {
+    background-color: #2d1b3a;
+    color: #ba68c8;
+}
+
+.task-status-auth_required,
+.task-status-input_required {
+    background-color: #fef3c7;
+    color: #92400e;
+}
+
+body.dark-mode .task-status-auth_required,
+body.dark-mode .task-status-input_required {
+    background-color: #4a3800;
+    color: #fbbf24;
+}
+
+.task-status-unknown {
+    background-color: #f5f5f5;
+    color: #616161;
+}
+
+body.dark-mode .task-status-unknown {
+    background-color: #3a3a3a;
+    color: #bdbdbd;
+}
+
+.task-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.task-action-btn {
+    padding: 6px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
+    cursor: pointer;
+    font-size: 0.85em;
+    transition: all 0.2s;
+}
+
+.task-action-btn:hover {
+    background-color: var(--bg-tertiary);
+    border-color: #999;
+}
+
+.task-action-btn.polling-active {
+    background-color: #4caf50;
+    color: white;
+    border-color: #4caf50;
+}
+
+body.dark-mode .task-action-btn.polling-active {
+    background-color: #2e7d32;
+    border-color: #2e7d32;
+}
+
+.task-action-btn.polling-active:hover {
+    background-color: #45a049;
+}
+
+body.dark-mode .task-action-btn.polling-active:hover {
+    background-color: #1b5e20;
+}
+
+.task-artifact-info {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border-color);
+    font-size: 0.85em;
+    color: var(--text-secondary);
+}
+
+/* Streaming Capability Styles */
+.session-streaming {
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-weight: 600;
+}
+
+.streaming-yes {
+    background-color: #e8f5e9;
+    color: #2e7d32;
+}
+
+body.dark-mode .streaming-yes {
+    background-color: #1b3a1f;
+    color: #81c784;
+}
+
+.streaming-no {
+    background-color: #fff3e0;
+    color: #f57c00;
+}
+
+body.dark-mode .streaming-no {
+    background-color: #4a3500;
+    color: #ffb74d;
+}
+
+.streaming-unknown {
+    background-color: #f5f5f5;
+    color: #616161;
+}
+
+body.dark-mode .streaming-unknown {
+    background-color: #3a3a3a;
+    color: #bdbdbd;
+}
+
+/* Polling Indicator Styles */
+.polling-indicator {
+    font-size: 0.85em;
+    color: #f57c00;
+    font-weight: 500;
+    animation: pulse 2s ease-in-out infinite;
+}
+
+body.dark-mode .polling-indicator {
+    color: #ffb74d;
+}
+
+@keyframes pulse {
+    0%,
+    100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.6;
+    }
+}

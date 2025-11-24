@@ -166,11 +166,17 @@ document.addEventListener('DOMContentLoaded', () => {
   const attachmentsPreview = document.getElementById(
     'attachments-preview',
   ) as HTMLElement;
+  const tasksHeader = document.getElementById('tasks-header') as HTMLElement;
+  const tasksContent = document.getElementById('tasks-content') as HTMLElement;
+  const tasksListContainer = document.getElementById(
+    'tasks-list-container',
+  ) as HTMLElement;
 
   let contextId: string | null = null;
   let isConnected = false;
   let supportedInputModes: string[] = ['text/plain'];
   let supportedOutputModes: string[] = ['text/plain'];
+  let streamingCapable: boolean | null = null;
   let isResizing = false;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const rawLogStore: Record<string, Record<string, any>> = {};
@@ -188,6 +194,17 @@ document.addEventListener('DOMContentLoaded', () => {
     thumbnail?: string; // for images
   }
   const attachments: Attachment[] = [];
+
+  // Task state management
+  interface TaskInfo {
+    id: string;
+    contextId?: string;
+    status: string;
+    artifacts?: unknown[];
+    lastPolled?: number;
+  }
+  const tasks: Map<string, TaskInfo> = new Map();
+  const pollingTasks: Set<string> = new Set();
 
   debugHandle.addEventListener('mousedown', (e: MouseEvent) => {
     const target = e.target as HTMLElement;
@@ -221,6 +238,19 @@ document.addEventListener('DOMContentLoaded', () => {
   collapsibleContent.addEventListener('transitionend', () => {
     if (!collapsibleContent.classList.contains('collapsed')) {
       collapsibleContent.style.overflow = 'auto';
+    }
+  });
+
+  // Tasks section collapsible
+  tasksHeader.addEventListener('click', () => {
+    tasksHeader.classList.toggle('collapsed');
+    tasksContent.classList.toggle('collapsed');
+    tasksContent.style.overflow = 'hidden';
+  });
+
+  tasksContent.addEventListener('transitionend', () => {
+    if (!tasksContent.classList.contains('collapsed')) {
+      tasksContent.style.overflow = 'auto';
     }
   });
 
@@ -768,6 +798,7 @@ document.addEventListener('DOMContentLoaded', () => {
       transport?: string;
       inputModes?: string[];
       outputModes?: string[];
+      streamingCapable?: boolean | null;
     }) => {
       clearTimeout(initializationTimeout);
       if (data.status === 'success') {
@@ -789,6 +820,8 @@ document.addEventListener('DOMContentLoaded', () => {
         // Store supported modalities
         supportedInputModes = data.inputModes || ['text/plain'];
         supportedOutputModes = data.outputModes || ['text/plain'];
+        streamingCapable =
+          data.streamingCapable !== undefined ? data.streamingCapable : null;
 
         // Update transport in Session Details
         const sessionTransport = document.getElementById(
@@ -798,6 +831,23 @@ document.addEventListener('DOMContentLoaded', () => {
           sessionTransport.textContent = data.transport;
         } else if (sessionTransport) {
           sessionTransport.textContent = 'Unknown';
+        }
+
+        // Update streaming capability in Session Details
+        const sessionStreaming = document.getElementById(
+          'session-streaming',
+        ) as HTMLElement;
+        if (sessionStreaming) {
+          if (streamingCapable === true) {
+            sessionStreaming.textContent = 'Yes';
+            sessionStreaming.className = 'session-streaming streaming-yes';
+          } else if (streamingCapable === false) {
+            sessionStreaming.textContent = 'No (Polling)';
+            sessionStreaming.className = 'session-streaming streaming-no';
+          } else {
+            sessionStreaming.textContent = 'Unknown';
+            sessionStreaming.className = 'session-streaming streaming-unknown';
+          }
         }
 
         // Update modalities display in Session Details
@@ -1004,6 +1054,15 @@ document.addEventListener('DOMContentLoaded', () => {
     // Hide loading indicator on first response
     hideLoadingIndicator();
 
+    // Debug logging
+    console.log('📩 Received agent_response:', {
+      kind: event.kind,
+      id: event.id,
+      status: event.status,
+      hasArtifacts: event.artifacts ? event.artifacts.length : 0,
+      contextId: event.contextId,
+    });
+
     const displayMessageId = `display-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
     messageJsonStore[displayMessageId] = event;
 
@@ -1028,6 +1087,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
     switch (event.kind) {
       case 'task': {
+        // Store task in local map
+        const taskInfo: TaskInfo = {
+          id: event.id,
+          contextId: event.contextId,
+          status: event.status?.state || 'unknown',
+          artifacts: event.artifacts,
+        };
+        tasks.set(event.id, taskInfo);
+        console.log('✓ Stored task:', {
+          id: event.id,
+          status: taskInfo.status,
+          contextId: event.contextId,
+          totalTasks: tasks.size,
+        });
+
+        // Trigger debug endpoint to see backend state
+        socket.emit('debug_tasks');
+
+        renderTaskList();
+
         // For HTTP+JSON tasks with artifacts, display content with kind chip (like JSON-RPC messages)
         const hasArtifacts = event.artifacts && event.artifacts.length > 0;
 
@@ -1065,10 +1144,33 @@ document.addEventListener('DOMContentLoaded', () => {
             true,
             validationErrors,
           );
+        } else {
+          // Show task creation even without status or artifacts (for debugging)
+          const statusHtml = `<span class="kind-chip kind-chip-task">${event.kind}</span> Task created (check Tasks section below for updates)`;
+          appendMessage(
+            'agent progress',
+            statusHtml,
+            displayMessageId,
+            true,
+            validationErrors,
+          );
         }
         break;
       }
       case 'status-update': {
+        // Update task status if this is a task status update
+        if (event.id && event.status?.state) {
+          const existingTask = tasks.get(event.id);
+          if (existingTask) {
+            existingTask.status = event.status.state;
+            if (event.artifacts) {
+              existingTask.artifacts = event.artifacts;
+            }
+            tasks.set(event.id, existingTask);
+            renderTaskList();
+          }
+        }
+
         const statusText = event.status?.message?.parts?.[0]?.text;
         if (statusText) {
           const renderedContent = DOMPurify.sanitize(
@@ -1165,6 +1267,151 @@ document.addEventListener('DOMContentLoaded', () => {
     setTimeout(processLogQueue, 0);
     debugContent.scrollTop = debugContent.scrollHeight;
   });
+
+  // Task management socket handlers
+  socket.on('task_list', (data: {tasks: TaskInfo[]; contextId?: string}) => {
+    // Update local task map
+    data.tasks.forEach((task) => {
+      tasks.set(task.id, task);
+    });
+    renderTaskList();
+  });
+
+  socket.on('task_update', (taskData: TaskInfo & {error?: string}) => {
+    if (taskData.error) {
+      console.error('Task update error:', taskData.error);
+      return;
+    }
+
+    // Update local task map
+    tasks.set(taskData.id, taskData);
+    renderTaskList();
+  });
+
+  socket.on(
+    'polling_status',
+    (data: {status: string; taskId: string; error?: string}) => {
+      if (data.error) {
+        console.error('Polling status error:', data.error);
+        return;
+      }
+
+      if (data.status === 'started') {
+        pollingTasks.add(data.taskId);
+      } else if (data.status === 'stopped' || data.status === 'not_polling') {
+        pollingTasks.delete(data.taskId);
+      }
+      renderTaskList();
+    },
+  );
+
+  function renderTaskList() {
+    // Filter tasks by current contextId
+    const filteredTasks = Array.from(tasks.values()).filter(
+      task => !contextId || task.contextId === contextId,
+    );
+
+    console.log('🎨 Rendering task list:', {
+      totalTasks: tasks.size,
+      currentContextId: contextId,
+      filteredCount: filteredTasks.length,
+      tasks: filteredTasks.map(t => ({id: t.id, status: t.status})),
+    });
+
+    if (filteredTasks.length === 0) {
+      tasksListContainer.innerHTML =
+        '<p class="placeholder-text">No tasks yet. Tasks will appear here when you send messages to agents.</p>';
+      console.log('No tasks to display (empty after filtering)');
+      return;
+    }
+
+    tasksListContainer.innerHTML = '';
+
+    filteredTasks.forEach(task => {
+      const taskCard = document.createElement('div');
+      taskCard.className = 'task-card';
+
+      const taskHeader = document.createElement('div');
+      taskHeader.className = 'task-header';
+
+      const taskId = document.createElement('span');
+      taskId.className = 'task-id';
+      taskId.textContent = `Task: ${task.id.substring(0, 8)}...`;
+      taskId.title = task.id;
+
+      const statusBadge = document.createElement('span');
+      statusBadge.className = `task-status task-status-${task.status}`;
+      statusBadge.textContent = task.status;
+
+      taskHeader.appendChild(taskId);
+      taskHeader.appendChild(statusBadge);
+
+      // Add polling indicator if task is being polled
+      if (pollingTasks.has(task.id)) {
+        const pollingIndicator = document.createElement('span');
+        pollingIndicator.className = 'polling-indicator';
+        pollingIndicator.textContent = '⏳ Polling...';
+        pollingIndicator.title = 'Automatically polling for updates every 3s';
+        taskHeader.appendChild(pollingIndicator);
+      }
+
+      const taskActions = document.createElement('div');
+      taskActions.className = 'task-actions';
+
+      // Manual refresh button
+      const refreshBtn = document.createElement('button');
+      refreshBtn.className = 'task-action-btn';
+      refreshBtn.textContent = '↻ Refresh';
+      refreshBtn.title = 'Manually refresh task status';
+      refreshBtn.onclick = () => {
+        socket.emit('get_task', {taskId: task.id});
+      };
+
+      // Auto-poll toggle
+      const pollToggle = document.createElement('button');
+      pollToggle.className = `task-action-btn ${pollingTasks.has(task.id) ? 'polling-active' : ''}`;
+      pollToggle.textContent = pollingTasks.has(task.id)
+        ? '⏸ Stop Auto-Poll'
+        : '▶ Auto-Poll';
+      pollToggle.title = pollingTasks.has(task.id)
+        ? 'Stop automatic polling'
+        : 'Start automatic polling (every 3s)';
+      pollToggle.onclick = () => {
+        if (pollingTasks.has(task.id)) {
+          socket.emit('stop_polling_task', {taskId: task.id});
+        } else {
+          socket.emit('start_polling_task', {taskId: task.id});
+        }
+      };
+
+      // View details button
+      const viewBtn = document.createElement('button');
+      viewBtn.className = 'task-action-btn';
+      viewBtn.textContent = 'View JSON';
+      viewBtn.title = 'View full task details';
+      viewBtn.onclick = () => {
+        modalJsonContent.textContent = JSON.stringify(task, null, 2);
+        jsonModal.classList.remove('hidden');
+      };
+
+      taskActions.appendChild(refreshBtn);
+      taskActions.appendChild(pollToggle);
+      taskActions.appendChild(viewBtn);
+
+      taskCard.appendChild(taskHeader);
+      taskCard.appendChild(taskActions);
+
+      // Show artifact count if available
+      if (task.artifacts && task.artifacts.length > 0) {
+        const artifactInfo = document.createElement('div');
+        artifactInfo.className = 'task-artifact-info';
+        artifactInfo.textContent = `${task.artifacts.length} artifact(s)`;
+        taskCard.appendChild(artifactInfo);
+      }
+
+      tasksListContainer.appendChild(taskCard);
+    });
+  }
 
   function appendMessage(
     sender: string,
